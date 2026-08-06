@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SomAi Math Tutor - Free AI-powered math help for Maseno University students. Runs 100% in your browser.">
+    <meta name="theme-color" content="#B8860B">
+    
+    <title>SomAi Math Tutor</title>
+    
+    <!-- Pyodide (Python runtime in browser) -->
+    <script async src="https://cdn.jsdelivr.net/npm/pyodide@0.24.0/pyodide.js"></script>
+    
+    <!-- Gradio-Lite (UI framework) -->
+    <script async src="https://cdn.jsdelivr.net/npm/gradio-lite@0.8.0"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            background: #f4f3ef;
+        }
+        
+        body[data-theme="dark"] {
+            background: #17181a;
+        }
+        
+        .loading-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #f4f3ef 0%, #fffbf0 100%);
+            gap: 20px;
+        }
+        
+        body[data-theme="dark"] .loading-screen {
+            background: linear-gradient(135deg, #17181a 0%, #201f1d 100%);
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e0d5c8;
+            border-top: 4px solid #B8860B;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        body[data-theme="dark"] .loading-spinner {
+            border-color: #35342f;
+            border-top-color: #E6C15C;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 16px;
+            color: #666;
+            text-align: center;
+        }
+        
+        body[data-theme="dark"] .loading-text {
+            color: #aaa;
+        }
+        
+        .loading-subtext {
+            font-size: 14px;
+            color: #999;
+            max-width: 300px;
+            text-align: center;
+        }
+        
+        body[data-theme="dark"] .loading-subtext {
+            color: #888;
+        }
+        
+        /* Status indicator */
+        .status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #FFD700;
+            margin-right: 8px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .error-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+            gap: 20px;
+            background: linear-gradient(135deg, #f4f3ef 0%, #fffbf0 100%);
+        }
+        
+        body[data-theme="dark"] .error-screen {
+            background: linear-gradient(135deg, #17181a 0%, #201f1d 100%);
+        }
+        
+        .error-icon {
+            font-size: 48px;
+        }
+        
+        .error-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #121212;
+            text-align: center;
+        }
+        
+        body[data-theme="dark"] .error-title {
+            color: #F1F0EC;
+        }
+        
+        .error-message {
+            font-size: 14px;
+            color: #666;
+            max-width: 400px;
+            text-align: center;
+            line-height: 1.6;
+        }
+        
+        body[data-theme="dark"] .error-message {
+            color: #aaa;
+        }
+        
+        .error-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .retry-btn {
+            padding: 10px 20px;
+            background: #B8860B;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        
+        .retry-btn:hover {
+            background: #9d7108;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen (shown while Pyodide/app loads) -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">
+            <span class="status"></span>
+            Loading SomAi Math Tutor...
+        </div>
+        <div class="loading-subtext">
+            First load takes 5-10 seconds. We're downloading Python and math libraries to your browser.
+        </div>
+    </div>
+    
+    <!-- Error Screen (shown if something fails) -->
+    <div class="error-screen" id="errorScreen">
+        <div class="error-icon">⚠️</div>
+        <div class="error-title">Failed to Load</div>
+        <div class="error-message" id="errorMessage">
+            Something went wrong loading the app. This might be a temporary issue.
+        </div>
+        <div class="error-actions">
+            <button class="retry-btn" onclick="location.reload()">Try Again</button>
+        </div>
+    </div>
+    
+    <!-- Gradio-Lite Container (app loads here) -->
+    <gradio-lite id="app">
+        <!-- These files are fetched from GitHub raw content below via JavaScript -->
+    </gradio-lite>
+    
+    <script>
+        // Configuration
+        const GITHUB_USERNAME = "ebeimilton-ship-it";  // ← CHANGE THIS
+        const GITHUB_REPO = "somai-math-tutor";           // ← CHANGE THIS if different
+        const GITHUB_BRANCH = "main";                      // ← CHANGE THIS if using different branch
+        
+        const BASE_URL = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/${GITHUB_BRANCH}`;
+        
+        async function loadApp() {
+            try {
+                console.log("Loading from:", BASE_URL);
+                
+                // Fetch app.py
+                const appResponse = await fetch(`${BASE_URL}/app.py`);
+                if (!appResponse.ok) throw new Error(`Failed to fetch app.py (${appResponse.status})`);
+                const appCode = await appResponse.text();
+                
+                // Fetch requirements.txt
+                const reqResponse = await fetch(`${BASE_URL}/requirements.txt`);
+                if (!reqResponse.ok) throw new Error(`Failed to fetch requirements.txt (${reqResponse.status})`);
+                const requirements = await reqResponse.text();
+                
+                // Create file elements for Gradio-Lite
+                const appElement = document.createElement('gradio-file');
+                appElement.setAttribute('name', 'app.py');
+                appElement.setAttribute('type', 'code');
+                appElement.textContent = appCode;
+                
+                const reqElement = document.createElement('gradio-file');
+                reqElement.setAttribute('name', 'requirements.txt');
+                reqElement.setAttribute('type', 'requirements');
+                reqElement.textContent = requirements;
+                
+                const container = document.getElementById('app');
+                container.innerHTML = '';
+                container.appendChild(appElement);
+                container.appendChild(reqElement);
+                
+                console.log("App loaded successfully!");
+                
+                // Hide loading screen after a moment
+                setTimeout(() => {
+                    const loadingScreen = document.getElementById('loadingScreen');
+                    if (loadingScreen) {
+                        loadingScreen.style.display = 'none';
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                console.error("Failed to load app:", error);
+                showError(error.message);
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('errorScreen').style.display = 'flex';
+            document.getElementById('errorMessage').textContent = 
+                `${message}\n\nMake sure the GitHub repository and files exist, and that you've updated the configuration in index.html.`;
+        }
+        
+        // Load app when page is ready
+        document.addEventListener('DOMContentLoaded', loadApp);
+        
+        // Dark mode support
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) {
+            document.body.setAttribute('data-theme', 'dark');
+        }
+    </script>
+</body>
+</html>
